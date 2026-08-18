@@ -4,7 +4,7 @@ Step-by-step from "just cloned" to "using Claude Code on a plane." Each stage bu
 
 ## What's already been verified
 
-Everything below was e2e-tested on a real machine — the entire pipeline (HTTP → framing → compression → delta sync → SSE synthesis → real Anthropic API → real Claude Code binary) works. The **only** leg that needs testing on your machines is iMessage itself (stages 3–4), because it needs your Full Disk Access + Automation permissions and your phone numbers.
+Everything below was e2e-tested on a real machine — the entire pipeline (HTTP → framing → compression → delta sync → SSE synthesis → real Anthropic API → real Claude Code binary), **including the real iMessage leg** via the Stage 3 self-texting test. Only the two-Mac setup (Stage 4) remains to be tried.
 
 | Verified | How |
 |---|---|
@@ -15,6 +15,7 @@ Everything below was e2e-tested on a real machine — the entire pipeline (HTTP 
 | home-host restart mid-session → automatic full-body recovery | stress run |
 | Streaming SSE + non-streaming against the **real API** | curl through the stack |
 | **Real `claude` CLI through the full stack** (137KB request, tunneled, answered) | `claude -p` through sky-client + home-host |
+| **Real iMessage leg**: 7s round trips, delta sync over texts, 7-frame chunked request reassembled | Stage 3 self-texting on a real Mac |
 
 ## Stage 0 — sanity check (30 seconds, any Mac)
 
@@ -62,25 +63,25 @@ Ask Claude Code something. It works normally — just via the tunnel.
 
 ## Stage 3 — real iMessage on ONE Mac (self-texting test)
 
-Prove the actual iMessage leg without needing the second Mac yet. Frames genuinely leave through Messages and come back to the same machine (echo loops can't happen — each side only reads the frame kinds addressed to it):
+Prove the actual iMessage leg without needing the second Mac yet. Frames genuinely leave through Messages and come back to the same machine (echo loops can't happen — each side only reads the frame kinds addressed to it). Self-sent texts conveniently arrive back as normal *incoming* messages, so no special flags are needed:
 
 ```sh
 # terminal 1
 export ANTHROPIC_API_KEY=sk-ant-...
 export SKY_PEER_NUMBER=+1YOUROWNNUMBER      # your own number/Apple ID
-python3 home-host/main.py --include-from-me
+python3 home-host/main.py
 
 # terminal 2
 export SKY_PEER_NUMBER=+1YOUROWNNUMBER
-python3 sky-client/main.py --include-from-me
+python3 sky-client/main.py
 
 # terminal 3
 ANTHROPIC_BASE_URL=http://localhost:8377 ANTHROPIC_API_KEY=skycode-dummy claude -p "say hi"
 ```
 
-**Checkpoint:** `SKY1|REQ|...` texts appear in Messages, then `SKY1|RSP|...` texts, then Claude answers. This validates chat.db decoding + sending on your macOS version — the two things that couldn't be pre-verified for you.
+**Checkpoint:** `SKY1|REQ|...` texts appear in Messages (in your "You" conversation), then `SKY1|RSP|...` texts, then Claude answers.
 
-Expect this to be slow (~0.7s per frame sent, 1s poll) — a first turn is a couple minutes. That's the price of the transport, not a bug.
+**Verified working**: on the reference machine this ran at ~7s per small turn, with turn 2 going out as a single delta frame, and an 8KB request correctly split into 7 paced texts and reassembled. Afterwards you can delete the self-conversation in Messages to clear the `SKY1|` clutter.
 
 ## Stage 4 — the real thing (two Macs)
 
