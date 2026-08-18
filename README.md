@@ -19,6 +19,8 @@
 
 Claude Code runs completely unmodified — it just thinks it's talking to a slow Anthropic API.
 
+**New here? See [USAGE.md](USAGE.md)** for a staged walkthrough from first test to in-flight use.
+
 ## How it works
 
 - **sky-client** (offline Mac) runs a local HTTP server that mimics the Anthropic Messages API. Point Claude Code at it with `ANTHROPIC_BASE_URL`. Each `POST /v1/messages` is serialized, compressed, split into text-message-sized frames, and sent via Messages.app to your home Mac's number.
