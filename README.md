@@ -145,7 +145,7 @@ python3 sky-client/main.py --transport file
 ANTHROPIC_BASE_URL=http://localhost:8377 ANTHROPIC_API_KEY=skycode-dummy claude
 ```
 
-**3. One-Mac real-iMessage self-test** (experimental): set `SKY_PEER_NUMBER` to your **own** number on both sides and add `--include-from-me`, and the frames genuinely travel through iMessage back to the same machine. Echo loops can't happen because each side only consumes the frame kinds addressed to it.
+**3. One-Mac real-iMessage self-test** (verified working): set `SKY_PEER_NUMBER` to your **own** number on both sides — no extra flags needed — and the frames genuinely travel through iMessage back to the same machine (self-sent texts arrive as normal incoming messages). Echo loops can't happen because each side only consumes the frame kinds addressed to it. See USAGE.md Stage 3 for the exact commands and measured timings.
 
 ## Limitations
 
