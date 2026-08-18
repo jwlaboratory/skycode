@@ -50,36 +50,61 @@ SKY1|REQ|a1b2c3d4|3/12|<base64 chunk>
 - Python 3.9+ (stock macOS Python works; stdlib only, nothing to install).
 - An Anthropic API key on the **home** Mac only.
 
-## Setup
+## Setup guide: two people, two Macs
 
-On **both** Macs:
+skycode is a two-player game: **Person 1** keeps a Mac online at home and pays for the API; **Person 2** is on the plane using Claude Code. (They can be the same human with two Macs — the "people" are just roles. The two Macs must be signed into **different** Apple IDs / numbers, or iMessage syncs instead of delivering.)
 
-1. Grant your terminal **Full Disk Access** (System Settings → Privacy & Security → Full Disk Access), then restart the terminal. This is needed to read the Messages database (`~/Library/Messages/chat.db`).
-2. Make sure you can send a normal iMessage to the other Mac's number from Messages.app.
-3. The first time skycode sends a message, macOS shows an **Automation** prompt (Terminal wants to control Messages) — click Allow.
+### Person 1 — Host (the Mac that stays home, online)
 
-On the **home** Mac:
+**One-time setup (~15 min):**
+
+1. Clone the repo: `git clone https://github.com/jwlaboratory/skycode.git && cd skycode`. Stock macOS Python is fine — nothing to install.
+2. Sign into Messages.app. Send a normal iMessage to Person 2's number and have them reply — if this doesn't work, nothing else will.
+3. Grant **Full Disk Access**: System Settings → Privacy & Security → Full Disk Access → toggle **Terminal** ON → quit and reopen Terminal. Verify:
+   ```sh
+   sqlite3 -readonly ~/Library/Messages/chat.db 'SELECT count(*) FROM message;'   # prints a number = good
+   ```
+4. Grant **Automation**: run the line below and click **Allow** on the popup ("Terminal wants to control Messages"):
+   ```sh
+   osascript shared/send_message.applescript "+1PERSON2NUMBER" "skycode setup test"
+   ```
+5. Get an Anthropic API key — ideally a **dedicated key with a spend limit** (console.anthropic.com → Billing), since the only auth on this tunnel is "the text came from Person 2's number."
+
+**Every time Person 2 flies:**
 
 ```sh
+cd skycode
 export ANTHROPIC_API_KEY=sk-ant-...
-export SKY_PEER_NUMBER=+15551234567     # the plane Mac's iMessage number
-python3 home-host/main.py
+export SKY_PEER_NUMBER=+1PERSON2NUMBER
+caffeinate -s zsh -c 'while true; do python3 home-host/main.py; sleep 5; done'
 ```
 
-On the **plane** Mac:
+Leave the Mac plugged in, on Wi-Fi, Messages signed in, auto-updates off. `caffeinate -s` keeps it awake; the loop auto-restarts the host if it ever dies (a restart is harmless — the next request just auto-resends in full). You'll see a log line per request, e.g. `[home-host] a1b2c3d4: delta req 248B -> 200 in 1.0s`. Your Messages thread with Person 2 will fill with `SKY1|...` gibberish — that's the tunnel.
 
-```sh
-export SKY_PEER_NUMBER=+15559876543     # the home Mac's iMessage number
-python3 sky-client/main.py
-```
+### Person 2 — User (on the plane)
 
-Then, in another terminal on the plane Mac:
+**One-time setup (~10 min), done at home before flying:**
 
-```sh
-ANTHROPIC_BASE_URL=http://localhost:8377 ANTHROPIC_API_KEY=skycode-dummy claude
-```
+1. Clone the repo and do the same **Full Disk Access** (step 3) and **Automation** (step 4, using Person 1's number) grants as above, on your laptop.
+2. **Dress rehearsal over real iMessage** — do the exact flight-day steps below while still on home Wi-Fi, with Person 1's host running. Don't skip this: it's the full production path, and it catches number typos, permission gaps, and Apple ID issues while you can still fix them.
 
-(The dummy key just satisfies Claude Code's auth check; sky-client ignores it and the home Mac uses its own real key.)
+**Flight day:**
+
+1. Buy/enable the in-flight Wi-Fi **free messaging tier** and confirm a normal iMessage to Person 1 actually delivers.
+2. Start the tunnel:
+   ```sh
+   cd skycode
+   export SKY_PEER_NUMBER=+1PERSON1NUMBER
+   python3 sky-client/main.py
+   ```
+3. In a **second terminal**, start Claude Code pointed at the tunnel:
+   ```sh
+   ANTHROPIC_BASE_URL=http://localhost:8377 ANTHROPIC_API_KEY=skycode-dummy claude
+   ```
+   (The dummy key just satisfies Claude Code's startup check — it never reaches Anthropic; Person 1's real key is used at home and never crosses the wire.)
+4. Warm up with "say hi", then work normally. Expect minutes per turn — every tool call Claude makes is its own iMessage round trip — so batched, specific prompts beat rapid back-and-forth. Regular `claude` sessions in other terminals (without `ANTHROPIC_BASE_URL`) still use the internet directly and are unaffected.
+
+If turns time out: raise `SKY_RESPONSE_TIMEOUT` (default 600s), and if the carrier seems to drop bursts of texts, raise `SKY_SEND_DELAY` / lower `SKY_CHUNK_SIZE`.
 
 ### Config
 
